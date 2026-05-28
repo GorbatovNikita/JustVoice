@@ -2,7 +2,6 @@ from sqlalchemy import ForeignKey, Text, Float, String
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from app.core.database import Base, int_pk, str_null_true, str_null_false
 
-from app.models.user import User
 
 
 class TranscriptionTask(Base):

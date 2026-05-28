@@ -67,12 +67,8 @@ class TopicClassifier:
         return augmented_texts, augmented_labels
     
     def train(self):
-        logger.info("Starting topic classifier training...")
-        
         texts, labels = self._prepare_data()
         texts, labels = self._augment_data(texts, labels)
-        
-        logger.info(f"Training on {len(texts)} samples across {len(self.topics)} topics")
         
         self.pipeline = Pipeline([
             ('tfidf', TfidfVectorizer(
@@ -101,7 +97,6 @@ class TopicClassifier:
                 'topics': self.topics
             }, f)
         
-        logger.info(f"Model trained and saved to {MODEL_PATH}")
     
     def load(self):
         if MODEL_PATH.exists():
@@ -110,7 +105,6 @@ class TopicClassifier:
                 self.pipeline = data['pipeline']
                 self.topics = data['topics']
                 self.is_fitted = True
-            logger.info(f"Model loaded from {MODEL_PATH}")
             return True
         return False
     
