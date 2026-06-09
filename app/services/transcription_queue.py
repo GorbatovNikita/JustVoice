@@ -44,6 +44,8 @@ async def process_single_task(task_id: int):
     import subprocess
     import traceback
     import soundfile as sf
+    import numpy as np
+    import torch
     
     from app.core.database import async_session_maker
     from app.models.transcription import TranscriptionTask, TranscriptionSegment
@@ -72,13 +74,13 @@ async def process_single_task(task_id: int):
             try:
                 wav_path = tempfile.mktemp(suffix='.wav')
                 subprocess.run([
-                'ffmpeg', '-y', '-i', file_path,
-                '-acodec', 'pcm_s16le',
-                '-ar', '16000',
-                '-ac', '1',
-                '-af', 'highpass=f=200,lowpass=f=3000,volume=2.0',
-                wav_path
-            ], capture_output=True, text=True)
+                    'ffmpeg', '-y', '-i', file_path,
+                    '-acodec', 'pcm_s16le',
+                    '-ar', '16000',
+                    '-ac', '1',
+                    '-af', 'highpass=f=200,lowpass=f=3000,volume=2.0',
+                    wav_path
+                ], capture_output=True, text=True)
                 
                 audio_data, sr = sf.read(wav_path, dtype='float32')
                 total_duration = len(audio_data) / sr
@@ -95,19 +97,55 @@ async def process_single_task(task_id: int):
                     None, whisperx.align, result["segments"], model_a, metadata, wav_path, "cpu"
                 )
                 
+                segments_list = aligned.get("segments", [])
+                
+                if len(segments_list) > 1:
+                    try:
+                        logger.info("started")
+                        import pyannote.audio
+                        from pyannote.audio import Pipeline
+                        from pyannote.audio.core.io import AudioFile
+                        
+                        hf_token = os.environ.get('HF_TOKEN', '')
+                        
+                        pipeline = Pipeline.from_pretrained(
+                            "pyannote/speaker-diarization-3.1",
+                            token=hf_token
+                        )
+                        
+                        audio_file = AudioFile(wav_path)
+                        diarization = pipeline(audio_file)
+                        
+                        for turn, _, speaker in diarization.itertracks(yield_label=True):
+                            for seg in segments_list:
+                                seg_mid = (seg.get('start', 0) + seg.get('end', 0)) / 2
+                                if turn.start <= seg_mid <= turn.end:
+                                    seg['speaker'] = speaker
+                        
+                        for seg in segments_list:
+                            if 'speaker' not in seg or not seg['speaker']:
+                                seg['speaker'] = "SPEAKER_00"
+                        
+                        speaker_count = len(set(s.get('speaker', 'SPEAKER_00') for s in segments_list))
+                        logger.info(f"Detected {speaker_count} speakers")
+                        
+                    except Exception as e:
+                        logger.warning(f"Diarization failed: {e}")
+                        for seg in segments_list:
+                            seg['speaker'] = "SPEAKER_00"
+                else:
+                    for seg in segments_list:
+                        seg['speaker'] = "SPEAKER_00"
+                
                 os.remove(wav_path)
                 
                 task.language = language
                 task.duration = total_duration
-                cnt = 0 
-                
-                segments_list = aligned.get("segments", [])
                 
                 for seg in segments_list:
-                    cnt += 1
                     segment = TranscriptionSegment(
                         task_id=task.id,
-                        speaker=f"Segment {cnt}",
+                        speaker=seg.get("speaker", "SPEAKER_00"),
                         start_time=seg.get("start", 0),
                         end_time=seg.get("end", 0),
                         text=seg.get("text", "").strip(),
@@ -131,7 +169,7 @@ async def process_single_task(task_id: int):
                 await session.commit()
                 
         except Exception as e:
-            logger.error(f"DB error: {e}")
+            logger.error(f"DB error: {traceback.format_exc()}")
 
 
 def get_queue_size():
