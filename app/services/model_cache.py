@@ -1,10 +1,19 @@
 import torch
+import typing
 import omegaconf
 
 torch.serialization.add_safe_globals([
     omegaconf.listconfig.ListConfig,
     omegaconf.base.ContainerMetadata,
     omegaconf.dictconfig.DictConfig,
+    typing.Any,
+    dict,
+    list,
+    bool,
+    int,
+    float,
+    str,
+    type(None),
 ])
 import whisperx
 import logging
