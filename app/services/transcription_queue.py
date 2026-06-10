@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from collections import deque
+import typing
 
 logger = logging.getLogger(__name__)
 
