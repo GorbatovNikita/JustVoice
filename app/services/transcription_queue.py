@@ -105,7 +105,7 @@ async def process_single_task(task_id: int):
                         import pyannote.audio
                         from pyannote.audio import Pipeline
                         from pyannote.audio.core.io import AudioFile
-                        from core.config import settings
+                        from app.core.config import settings
                         
                         hf_token = settings.HUGGINFACE_TOKEN
                         
