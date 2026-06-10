@@ -105,8 +105,9 @@ async def process_single_task(task_id: int):
                         import pyannote.audio
                         from pyannote.audio import Pipeline
                         from pyannote.audio.core.io import AudioFile
+                        from core.config import settings
                         
-                        hf_token = os.environ.get('HF_TOKEN', '')
+                        hf_token = settings.HUGGINFACE_TOKEN
                         
                         pipeline = Pipeline.from_pretrained(
                             "pyannote/speaker-diarization-3.1",
