@@ -1,3 +1,11 @@
+import torch
+import omegaconf
+
+torch.serialization.add_safe_globals([
+    omegaconf.listconfig.ListConfig,
+    omegaconf.base.ContainerMetadata,
+    omegaconf.dictconfig.DictConfig,
+])
 import whisperx
 import logging
 import os
