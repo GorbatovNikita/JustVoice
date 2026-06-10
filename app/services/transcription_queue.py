@@ -2,6 +2,8 @@ import asyncio
 import logging
 from collections import deque
 import typing
+if not hasattr(typing, '_UnionGenericAlias'):
+    typing._UnionGenericAlias = getattr(typing, 'Union')
 
 logger = logging.getLogger(__name__)
 
