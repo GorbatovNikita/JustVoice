@@ -1,7 +1,11 @@
+from typing import TYPE_CHECKING
 from sqlalchemy import ForeignKey, Text, Float, String
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from app.core.database import Base, int_pk, str_null_true, str_null_false
 
+if TYPE_CHECKING:
+    from app.models.user import User
+    from app.models.speakers import SegmentSpeaker
 
 
 class TranscriptionTask(Base):
@@ -23,6 +27,9 @@ class TranscriptionTask(Base):
         cascade="all, delete-orphan"
     )
 
+    def __str__(self):
+        return f"{self.original_filename} ({self.status})"
+
 
 class TranscriptionSegment(Base):
     id: Mapped[int_pk]
@@ -34,3 +41,11 @@ class TranscriptionSegment(Base):
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     
     task: Mapped["TranscriptionTask"] = relationship("TranscriptionTask", back_populates="segments")
+    speaker_link: Mapped[list["SegmentSpeaker"]] = relationship(
+        "SegmentSpeaker",
+        back_populates="segment",
+        cascade="all, delete-orphan"
+    )
+
+    def __str__(self):
+        return f"{self.speaker}: {self.text[:50]}..."

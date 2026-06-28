@@ -48,3 +48,4 @@ async def get_user_transcriptions(user_id: int):
             })
         
         return result_list
+    

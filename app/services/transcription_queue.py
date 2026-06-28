@@ -54,6 +54,7 @@ async def process_single_task(task_id: int):
     from app.models.transcription import TranscriptionTask, TranscriptionSegment
     from app.services.model_cache import get_whisper_model, get_align_model
     from app.services.topic_classifier import classify_topic
+    from app.services.speakers import process_diarization
     
     logger.info(f"Processing task {task_id}")
     
@@ -104,34 +105,23 @@ async def process_single_task(task_id: int):
                 
                 if len(segments_list) > 1:
                     try:
-                        logger.info("started")
-                        import pyannote.audio
-                        from pyannote.audio import Pipeline
-                        from pyannote.audio.core.io import AudioFile
-                        from app.core.config import settings
-                        
-                        hf_token = settings.HUGGINFACE_TOKEN
-                        
-                        pipeline = Pipeline.from_pretrained(
-                            "pyannote/speaker-diarization-3.1",
-                            token=hf_token
+                        results = await process_diarization(
+                            user_id=task.user_id,
+                            wav_path=wav_path,
+                            segments=segments_list
                         )
                         
-                        audio_file = AudioFile(wav_path)
-                        diarization = pipeline(audio_file)
-                        
-                        for turn, _, speaker in diarization.itertracks(yield_label=True):
-                            for seg in segments_list:
-                                seg_mid = (seg.get('start', 0) + seg.get('end', 0)) / 2
-                                if turn.start <= seg_mid <= turn.end:
-                                    seg['speaker'] = speaker
-                        
-                        for seg in segments_list:
-                            if 'speaker' not in seg or not seg['speaker']:
+                        for i, seg in enumerate(segments_list):
+                            if i < len(results):
+                                seg['speaker'] = results[i]['speaker']
+                                seg['speaker_id'] = results[i].get('db_id')
+                            else:
                                 seg['speaker'] = "SPEAKER_00"
                         
-                        speaker_count = len(set(s.get('speaker', 'SPEAKER_00') for s in segments_list))
-                        logger.info(f"Detected {speaker_count} speakers")
+                        speaker_count = len(set(
+                            r['speaker'] for r in results if r.get('speaker') != 'Unknown'
+                        ))
+                        logger.info(f"Identified {speaker_count} speakers")
                         
                     except Exception as e:
                         logger.warning(f"Diarization failed: {e}")
@@ -156,6 +146,17 @@ async def process_single_task(task_id: int):
                         confidence=seg.get("confidence", None)
                     )
                     session.add(segment)
+                    await session.flush()
+                    
+                    speaker_id = seg.get('speaker_id')
+                    if speaker_id is not None:
+                        from app.models.speakers import SegmentSpeaker
+                        from sqlalchemy import delete
+                        await session.execute(
+                            delete(SegmentSpeaker).where(SegmentSpeaker.segment_id == segment.id)
+                        )
+                        link = SegmentSpeaker(segment_id=segment.id, speaker_id=speaker_id)
+                        session.add(link)
                 
                 full_text = " ".join([seg.get("text", "") for seg in segments_list])
                 topic = await loop.run_in_executor(None, classify_topic, full_text)

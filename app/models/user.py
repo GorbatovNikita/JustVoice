@@ -1,7 +1,10 @@
+from typing import TYPE_CHECKING
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from app.core.database import Base, str_uniq, int_pk, str_null_true, str_null_false
 
-from app.models.transcription import TranscriptionTask
+if TYPE_CHECKING:
+    from app.models.transcription import TranscriptionTask
+    from app.models.speakers import Speaker
 
 
 class User(Base):
@@ -14,6 +17,12 @@ class User(Base):
 
     transcription_tasks: Mapped[list["TranscriptionTask"]] = relationship(
         "TranscriptionTask", 
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+    
+    speakers: Mapped[list["Speaker"]] = relationship(
+        "Speaker",
         back_populates="user",
         cascade="all, delete-orphan"
     )
